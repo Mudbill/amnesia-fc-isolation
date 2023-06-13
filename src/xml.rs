@@ -34,7 +34,7 @@ const DEFAULT_VALUES_DIRECTORIES: [(&str, &str); 3] = [
     ("GameLanguageFolder", "config/lang/"),
     ("CustomStoryPath", "custom_stories"),
 ];
-const DEFAULT_VALUES_START_MAP: [(&str, &str); 1] = [("Folder", "maps/ch01/")];
+const DEFAULT_VALUES_START_MAP: [(&str, &str); 1] = [("Folder", "maps/main/")];
 
 /// Mutate the main_init.cfg file for a mod,
 /// by prepending all custom paths with the new mod location

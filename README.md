@@ -20,7 +20,7 @@
    - Directories.BaseLanguageFolder unless "config/"
    - Directories.GameLanguageFolder unless "config/lang/"
    - Directories.CustomStoryPath unless "custom_stories"
-   - StartMap.Folder unless "maps/ch01/"
+   - StartMap.Folder unless "maps/main/"
 5. Find the `resources.cfg` based on the path in `main_init.cfg`, and then add a new entry at the top for the new mod folder location. Also update all paths that aren't default to be prepended with the relative mod folder path.
 6. Find `game.cfg` and prepend the path to:
    - Insanity.EventsFile unless "misc/main_sanity_events.cfg"
