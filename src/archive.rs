@@ -1,11 +1,41 @@
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::path::PathBuf;
+use std::process::exit;
 use unrar::Archive;
+
+pub fn extract_archive(src: &String, dst: &PathBuf) {
+    let mod_src = Path::new(src);
+
+    // Verify that the input file exists
+    if !mod_src.is_file() {
+        println!("File not found: {}", src);
+        exit(-1);
+    }
+
+    if dst.exists() {
+        return;
+    }
+
+    let ext = mod_src.extension().unwrap().to_str().unwrap();
+
+    match ext {
+        "rar" => {
+            extract_rar(src.clone(), String::from(dst.to_str().unwrap()));
+        }
+        "zip" => {
+            extract_zip(src.clone(), &dst);
+        }
+        _ => {
+            return;
+        }
+    }
+}
 
 pub fn extract_rar(file_path: String, out_path: String) {
     Archive::new(file_path)
-        .extract_to(String::from(out_path))
+        .extract_to(out_path)
         .expect("Failed to extract")
         .process()
         .expect("Failed to extract");
