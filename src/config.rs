@@ -10,11 +10,16 @@ pub struct Config {
     pub relative_path: PathBuf,
 }
 
+fn print_help_message() {
+    println!("\nUsage: installer \"path/to/mod.zip\"\n\nThis script assumes the current directory is the game's directory, and will install to './custom_stories'.\nMake sure you run it from the correct location.");
+}
+
 pub fn load_args() -> Config {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
         eprintln!("ERROR: Missing argument for target mod");
+        print_help_message();
         exit(1);
     }
 
