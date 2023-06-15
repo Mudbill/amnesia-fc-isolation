@@ -1,0 +1,3 @@
+[main]
+game-directory = "./out"
+mods-directory = "./out/custom_stories"

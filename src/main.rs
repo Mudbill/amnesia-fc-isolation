@@ -1,57 +1,57 @@
-use std::{fs::File, path::Path, process::exit};
-
-use archive::extract_archive;
-use fs::get_basename;
-use utils::relpath;
+use std::process::exit;
 
 mod archive;
+mod config;
 mod fs;
 mod utils;
 mod xml;
 
-const GAME_DIR: &str = "./out/";
-const MODS_DIR: &str = "./out/custom_stories/";
-const MOD_TO_INSTALL: &str = "./assets/example_mod.rar";
-
 fn main() {
-    let mods_dir = String::from(MODS_DIR);
-    utils::setup_mod_dir(&mods_dir);
+    // Load required data about our environment
+    let config = config::load_args();
 
-    let mod_src = String::from(MOD_TO_INSTALL);
-    let basename = get_basename(&mod_src);
-    let mod_dst = Path::new(&mods_dir).join(basename);
-    extract_archive(&mod_src, &mod_dst);
+    // Create common mods folder if not already existing
+    utils::setup_mods_dir(&config.mods_dir);
 
-    let rel_mods_path = relpath(&String::from(MODS_DIR), &String::from(GAME_DIR));
-    let rel_mods_path = rel_mods_path.join(basename);
+    // Extract target mod into mods folder
+    let did_install = archive::extract_archive(&config.src, &config.dst);
 
-    let main_init = fs::find_main_init(&String::from(mod_dst.to_str().unwrap()));
-
-    match &main_init {
+    // Locate where the main init file is
+    let main_init = match fs::find_main_init(&config.dst) {
         None => {
-            eprintln!("Failed to find main_init.cfg in extracted mod.");
-            exit(-1);
+            eprintln!("ERROR: Failed to locate main init file in extracted mod");
+            exit(1);
         }
         Some(path) => {
-            println!("Found main_init.cfg: {:?}", path);
+            println!("INFO: Found main init file {:?}", path);
+            path
         }
+    };
+
+    if did_install {
+        // Change it, so that the paths are updated to reflect the mods folder location
+        xml::mutate_main_init(&main_init, &config.relative_path);
     }
 
-    let main_init = main_init.unwrap();
-    let main_init_content = fs::read_file(&main_init.as_path());
-    let main_init_file = File::create(&main_init).unwrap();
+    // Find the (now mutated) path for the resources.cfg file
+    let resources_path = match xml::get_resources_path(&main_init) {
+        None => {
+            eprintln!("ERROR: Couldn't find the Resources path inside main init file.");
+            exit(1);
+        }
+        // Now join it with the game directory in order to find the file
+        Some(path) => path,
+    };
 
-    let prepend_path = rel_mods_path.to_str().unwrap().to_owned() + "/";
+    if !resources_path.is_file() {
+        eprintln!("ERROR: Resources file not found at {:?}", resources_path);
+        exit(1);
+    }
 
-    xml::mutate_main_init(main_init_content, &main_init_file, prepend_path.as_str());
+    println!("INFO: Found resources file at {:?}", resources_path);
 
-    let main_init_content = fs::read_file(&main_init.as_path());
-
-    let prepend_path = String::from("/") + &prepend_path;
-
-    let resources_path = xml::get_resources(&main_init_content).unwrap();
-    let resources_path = String::from(GAME_DIR) + &resources_path;
-    let resources_content = fs::read_file(Path::new(&resources_path));
-    let resources_file = File::create(Path::new(&resources_path)).unwrap();
-    xml::mutate_resources(resources_content, resources_file, &prepend_path);
+    if did_install {
+        // Change the resources file to add the mod's new directory at top priority
+        xml::mutate_resources(&resources_path, &config.relative_path);
+    }
 }

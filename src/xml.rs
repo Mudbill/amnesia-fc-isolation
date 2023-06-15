@@ -1,5 +1,8 @@
 use linked_hash_map::LinkedHashMap;
-use std::fs::File;
+use std::{
+    fs::{self, File},
+    path::PathBuf,
+};
 
 use xml::{writer, EmitterConfig, EventReader};
 
@@ -38,12 +41,18 @@ const DEFAULT_VALUES_START_MAP: [(&str, &str); 1] = [("Folder", "maps/main/")];
 
 /// Mutate the main_init.cfg file for a mod,
 /// by prepending all custom paths with the new mod location
-pub fn mutate_main_init(content: String, outfile: &File, mod_path: &str) {
+pub fn mutate_main_init(file: &PathBuf, relative_path: &PathBuf) {
+    let content = fs::read_to_string(file).expect("ERROR: Failed to read file");
+    let outfile = File::create(file).unwrap();
     let reader = EventReader::from_str(&content);
     let mut writer = EmitterConfig::new()
         .write_document_declaration(false)
         .perform_indent(true)
         .create_writer(outfile);
+
+    let prepend_value = String::from(relative_path.to_str().unwrap()) + "/";
+
+    println!("INFO: Prepending '{}' to main init paths", prepend_value);
 
     for e in reader {
         let event = match e {
@@ -72,19 +81,19 @@ pub fn mutate_main_init(content: String, outfile: &File, mod_path: &str) {
                 // Modify attributes
                 if name.local_name == "ConfigFiles" {
                     for (key, default_value) in DEFAULT_VALUES_CONFIG_FILES {
-                        edit_attrib(&mut attribs, key, default_value, mod_path);
+                        edit_attrib(&mut attribs, key, default_value, &prepend_value);
                     }
                 }
 
                 if name.local_name == "Directories" {
                     for (key, default_value) in DEFAULT_VALUES_DIRECTORIES {
-                        edit_attrib(&mut attribs, key, default_value, mod_path);
+                        edit_attrib(&mut attribs, key, default_value, &prepend_value);
                     }
                 }
 
                 if name.local_name == "StartMap" {
                     for (key, default_value) in DEFAULT_VALUES_START_MAP {
-                        edit_attrib(&mut attribs, key, default_value, mod_path);
+                        edit_attrib(&mut attribs, key, default_value, &prepend_value);
                     }
                 }
 
@@ -105,7 +114,8 @@ pub fn mutate_main_init(content: String, outfile: &File, mod_path: &str) {
     }
 }
 
-pub fn get_resources(content: &String) -> Option<String> {
+pub fn get_resources_path(file: &PathBuf) -> Option<PathBuf> {
+    let content = fs::read_to_string(file).unwrap();
     let reader = EventReader::from_str(&content);
     for e in reader {
         let event = match e {
@@ -129,16 +139,18 @@ pub fn get_resources(content: &String) -> Option<String> {
                         println!("");
                         return Option::None;
                     }
-                    Some(attrib) => return Option::Some(attrib.value.clone()),
+                    Some(attrib) => return Option::Some(PathBuf::from(&attrib.value)),
                 };
             }
             _ => (),
         }
     }
-    return Option::Some(String::new());
+    return Option::None;
 }
 
-pub fn mutate_resources(content: String, outfile: File, mod_path: &str) {
+pub fn mutate_resources(file: &PathBuf, mod_path: &PathBuf) {
+    let content = fs::read_to_string(file).unwrap();
+    let outfile = File::create(file).unwrap();
     let reader = EventReader::from_str(&content);
     let mut writer = EmitterConfig::new()
         .write_document_declaration(false)
@@ -147,6 +159,9 @@ pub fn mutate_resources(content: String, outfile: File, mod_path: &str) {
 
     let mut is_in_directories = false;
     let mut has_added_resource = false;
+
+    let resource_path = PathBuf::from("/").join(mod_path);
+    let resource_path = resource_path.to_str().unwrap();
 
     for e in reader {
         match e.unwrap() {
@@ -166,11 +181,15 @@ pub fn mutate_resources(content: String, outfile: File, mod_path: &str) {
 
                 if is_in_directories && !has_added_resource {
                     let extra_write_event = writer::XmlEvent::start_element("Directory")
-                        .attr("Path", mod_path)
+                        .attr("Path", resource_path)
                         .attr("AddSubDirs", "true");
                     writer.write(extra_write_event).unwrap();
                     writer.write(writer::XmlEvent::end_element()).unwrap();
                     has_added_resource = true;
+                    println!(
+                        "INFO: Added new resource element with path '{}'",
+                        resource_path
+                    );
                 }
 
                 if name.local_name == "Resources" {
@@ -202,7 +221,7 @@ fn edit_attrib(
 ) {
     let value = attribs.get_mut(key).unwrap();
 
-    if value != default_value {
+    if value != default_value && !value.starts_with(prepend_value) {
         value.insert_str(0, prepend_value);
     }
 }

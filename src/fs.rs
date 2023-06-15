@@ -1,11 +1,8 @@
-use std::{
-    fs::{self},
-    path::{Path, PathBuf},
-};
+use std::{fs, path::PathBuf};
 
-pub fn find_main_init(mod_dir: &String) -> Option<PathBuf> {
+pub fn find_main_init(mod_dir: &PathBuf) -> Option<PathBuf> {
     // First we try the most obvious location
-    let test_path = Path::new(mod_dir).join("config").join("main_init.cfg");
+    let test_path = mod_dir.join("config").join("main_init.cfg");
     if test_path.is_file() {
         return Option::Some(test_path);
     }
@@ -41,12 +38,4 @@ pub fn find_main_init(mod_dir: &String) -> Option<PathBuf> {
         }
     }
     return Option::None;
-}
-
-pub fn get_basename(path: &String) -> &str {
-    Path::new(path).file_stem().unwrap().to_str().unwrap()
-}
-
-pub fn read_file(path: &Path) -> String {
-    fs::read_to_string(path).unwrap()
 }

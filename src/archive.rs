@@ -1,36 +1,66 @@
 use std::fs;
 use std::io;
+use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;
 use unrar::Archive;
 
-pub fn extract_archive(src: &String, dst: &PathBuf) {
-    let mod_src = Path::new(src);
+pub fn extract_archive(src: &PathBuf, dst: &PathBuf) -> bool {
+    // If destination already exists, the mod is probably already installed, so abort
+    if dst.exists() {
+        println!("INFO: Destination is already in use, skipping install.");
+        return false;
+    }
 
-    // Verify that the input file exists
-    if !mod_src.is_file() {
-        println!("File not found: {}", src);
+    // If target is a folder, just copy the folder
+    if src.is_dir() {
+        println!("INFO: Copying folder from {:?} to {:?}", src, dst);
+        extract_folder(src, dst).unwrap();
+        return true;
+    }
+
+    // If target is a file, make sure it's found
+    if !src.is_file() {
+        println!("File not found: {:?}", src);
         exit(-1);
     }
 
-    if dst.exists() {
-        return;
-    }
-
-    let ext = mod_src.extension().unwrap().to_str().unwrap();
+    let ext = src.extension().unwrap().to_str().unwrap();
 
     match ext {
         "rar" => {
-            extract_rar(src.clone(), String::from(dst.to_str().unwrap()));
+            println!("INFO: Extracting RAR archive {:?} to {:?}", src, dst);
+            extract_rar(
+                src.to_str().unwrap().to_string(),
+                String::from(dst.to_str().unwrap()),
+            );
+            return true;
         }
         "zip" => {
-            extract_zip(src.clone(), &dst);
+            println!("INFO: Extracting ZIP archive {:?} to {:?}", src, dst);
+            extract_zip(src.to_str().unwrap().to_string(), &dst);
+            return true;
         }
         _ => {
-            return;
+            eprintln!("ERROR: Unsupported archive format extension {}", ext);
+            return false;
         }
     }
+}
+
+fn extract_folder(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            extract_folder(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }
 
 pub fn extract_rar(file_path: String, out_path: String) {
